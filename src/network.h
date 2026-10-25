@@ -31,6 +31,10 @@ public:
     bool SendDirectMessage(const std::string& dialogId, const std::string& text, DirectMessage& outMsg);
     bool ToggleLike(const std::string& postId, bool& outLiked, int& outCount);
 
+    // Network connection & Auth
+    bool AutoDiscoverBridge();
+    bool Login(const std::string& username, const std::string& password);
+
     bool IsConnected() const { return m_Connected; }
     std::string GetLastError() const { return m_LastError; }
 

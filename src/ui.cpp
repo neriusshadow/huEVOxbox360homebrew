@@ -21,10 +21,13 @@ enum class PendingKeyboardAction {
     CREATE_POST,
     SEND_MESSAGE,
     SEARCH,
-    CONFIG_IP
+    CONFIG_IP,
+    LOGIN_USERNAME,
+    LOGIN_PASSWORD
 };
 
 static PendingKeyboardAction s_PendingAction = PendingKeyboardAction::NONE;
+static std::string s_TempLoginUser;
 
 UIManager::UIManager()
     : m_CurrentTab(ViewTab::FEED)
@@ -106,6 +109,19 @@ void UIManager::Update() {
                 } else if (s_PendingAction == PendingKeyboardAction::CONFIG_IP) {
                     g_Config.bridgeHost = text;
                     ShowToast("IP моста сохранён: " + text, 90);
+                } else if (s_PendingAction == PendingKeyboardAction::LOGIN_USERNAME) {
+                    s_TempLoginUser = text;
+                    s_PendingAction = PendingKeyboardAction::LOGIN_PASSWORD;
+                    g_Keyboard.Prompt("Пароль", "Введите пароль на huevo.su", "");
+                    return;
+                } else if (s_PendingAction == PendingKeyboardAction::LOGIN_PASSWORD) {
+                    bool ok = g_Network.Login(s_TempLoginUser, text);
+                    if (ok) {
+                        g_Network.FetchProfile("", m_User, m_UserPosts);
+                        ShowToast("Авторизация успешна! Привет, @" + s_TempLoginUser, 100);
+                    } else {
+                        ShowToast("Ошибка входа: проверьте логин и пароль", 100);
+                    }
                 }
             }
             s_PendingAction = PendingKeyboardAction::NONE;
@@ -263,8 +279,22 @@ void UIManager::HandleActions() {
                 ShowToast("Лот зарезервирован!", 60);
             }
         } else if (m_CurrentTab == ViewTab::SETTINGS) {
-            s_PendingAction = PendingKeyboardAction::CONFIG_IP;
-            g_Keyboard.Prompt("IP Моста", "Введите IP адрес компьютера с bridge.py", g_Config.bridgeHost);
+            if (m_ContentIndex == 0) {
+                s_PendingAction = PendingKeyboardAction::CONFIG_IP;
+                g_Keyboard.Prompt("IP Моста", "Введите IP адрес компьютера с bridge.py", g_Config.bridgeHost);
+            } else if (m_ContentIndex == 1) {
+                s_PendingAction = PendingKeyboardAction::LOGIN_USERNAME;
+                g_Keyboard.Prompt("Логин", "Введите никнейм на huevo.su", "");
+            } else if (m_ContentIndex == 3) {
+                bool found = g_Network.AutoDiscoverBridge();
+                if (found) {
+                    ShowToast("Мост найден в сети: " + g_Config.bridgeHost, 90);
+                    g_Network.FetchFeed(m_FeedPosts);
+                    g_Network.FetchProfile("", m_User, m_UserPosts);
+                } else {
+                    ShowToast("Мост не найден. Запустите Запуск_Моста_Windows.bat на ПК", 100);
+                }
+            }
         }
     }
 }
@@ -887,16 +917,16 @@ void UIManager::RenderSettingsTab() {
     float w = 960;
 
     g_Renderer.DrawRoundedRect(startX, startY, w, 40, 5.0f, COLOR_CARD, COLOR_CARD_BORDER, 1.0f);
-    g_Renderer.DrawText("Настройки аккаунта и сети", startX + 16, startY + 12, COLOR_TEXT_PRIMARY, 1.15f, true);
+    g_Renderer.DrawText("Настройки сети и авторизации huEVO", startX + 16, startY + 12, COLOR_TEXT_PRIMARY, 1.15f, true);
 
     float cardY = startY + 54;
-    struct SettingRow { const char* title; const char* val; };
+    struct SettingRow { const char* title; const char* val; const char* btnText; };
     SettingRow rows[] = {
-        { "Адрес страницы:", "https://huevo.su/telega" },
-        { "Имя на странице:", m_User.displayName.c_str() },
-        { "Companion Bridge IP:", g_Config.bridgeHost.c_str() },
-        { "Звук уведомлений:", "Включён" },
-        { "Безопасность консоли:", "Freeboot / RGH Title Bypass" }
+        { "Сервер / IP Моста:", g_Config.bridgeHost.c_str(), "Изменить IP" },
+        { "Текущий аккаунт:", m_User.displayName.c_str(), "Войти в аккаунт" },
+        { "Статус сети:", "Онлайн (Синхронизировано)", "" },
+        { "Автопоиск моста в Wi-Fi:", "Сканировать сеть", "Найти мост" },
+        { "Безопасность консоли:", "Freeboot / RGH Title Bypass", "" }
     };
 
     for (int i = 0; i < 5; ++i) {
@@ -907,8 +937,8 @@ void UIManager::RenderSettingsTab() {
         g_Renderer.DrawText(rows[i].title, startX + 20, cardY + 20, COLOR_TEXT_MUTED, 1.05f, false);
         g_Renderer.DrawText(rows[i].val, startX + 320, cardY + 20, COLOR_TEXT_PRIMARY, 1.05f, true);
 
-        if (i == 2) {
-            g_Renderer.DrawButtonPrompt("A", "Изменить IP", startX + w - 180, cardY + 16, COLOR_ACCENT_BLUE);
+        if (strlen(rows[i].btnText) > 0) {
+            g_Renderer.DrawButtonPrompt("A", rows[i].btnText, startX + w - 190, cardY + 16, COLOR_ACCENT_BLUE);
         }
 
         cardY += 68;

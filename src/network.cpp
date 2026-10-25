@@ -155,7 +155,72 @@ bool NetworkClient::Initialize() {
 #endif
 
     PopulateMockData();
+    AutoDiscoverBridge();
     return m_Connected;
+}
+
+bool NetworkClient::AutoDiscoverBridge() {
+    SOCKET sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+    if (sock == INVALID_SOCKET) return false;
+
+    int broadcast = 1;
+    setsockopt(sock, SOL_SOCKET, SO_BROADCAST, (const char*)&broadcast, sizeof(broadcast));
+
+#ifdef _XBOX
+    DWORD timeout = 800;
+    setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, (const char*)&timeout, sizeof(timeout));
+#else
+    struct timeval tv;
+    tv.tv_sec = 0;
+    tv.tv_usec = 800000;
+    setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof(tv));
+#endif
+
+    sockaddr_in broadcastAddr;
+    std::memset(&broadcastAddr, 0, sizeof(broadcastAddr));
+    broadcastAddr.sin_family = AF_INET;
+    broadcastAddr.sin_port = htons(8081);
+    broadcastAddr.sin_addr.s_addr = inet_addr("255.255.255.255");
+
+    const char* msg = "HUEVO_DISCOVERY";
+    sendto(sock, msg, static_cast<int>(strlen(msg)), 0, (sockaddr*)&broadcastAddr, sizeof(broadcastAddr));
+
+    char buf[256];
+    sockaddr_in fromAddr;
+    int fromLen = sizeof(fromAddr);
+    int bytes = recvfrom(sock, buf, sizeof(buf) - 1, 0, (sockaddr*)&fromAddr, &fromLen);
+    if (bytes > 0) {
+        buf[bytes] = '\0';
+        std::string reply(buf);
+        if (reply.rfind("HUEVO_SERVER:", 0) == 0) {
+            std::string serverHost = reply.substr(13);
+            size_t colon = serverHost.find(':');
+            if (colon != std::string::npos) {
+                g_Config.bridgeHost = serverHost.substr(0, colon);
+                g_Config.bridgePort = atoi(serverHost.substr(colon + 1).c_str());
+            } else {
+                g_Config.bridgeHost = serverHost;
+            }
+            closesocket(sock);
+            return true;
+        }
+    }
+    closesocket(sock);
+    return false;
+}
+
+bool NetworkClient::Login(const std::string& username, const std::string& password) {
+    std::string postData = "username=" + username + "&password=" + password;
+    std::string resp = HttpRequest("POST", "/api/login", postData);
+    std::string body = GetHttpBody(resp);
+    if (!body.empty() && ExtractJsonBool(body, "ok")) {
+        FetchProfile("", m_CachedUser, m_CachedUserPosts);
+        FetchFeed(m_CachedFeed);
+        FetchDialogs(m_CachedDialogs);
+        FetchFriends(m_CachedFriends);
+        return true;
+    }
+    return false;
 }
 
 void NetworkClient::Shutdown() {
