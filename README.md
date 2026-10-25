@@ -1,9 +1,8 @@
-# 🎮 huEVO for Xbox 360 (Homebrew Edition by SWAGDEV)
+# 🎮 huEVO for Xbox 360 Homebrew
 
 > **Нативный клиент независимой ретро-соцсети [huEVO](https://huevo.su) для Microsoft Xbox 360 (Freeboot / RGH / JTAG / Devkit)**  
 > **Интерфейс в аутентичном стиле VKontakte circa 2016 (тёмная тема, полноразмерные карточки, чаты, стена и звучок)**
 
-![huEVO Xbox 360 Banner](assets/banner.png)
 
 ---
 
