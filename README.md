@@ -3,7 +3,6 @@
 > **Нативный автономный клиент независимой ретро-соцсети [huEVO](https://huevo.su) для Microsoft Xbox 360 (Freeboot / RGH / JTAG / Aurora Dashboard)**
 > **Работает НАПРЯМУЮ через проводной интернет (Ethernet) или Wi-Fi консоли. Компьютер или мост НЕ требуются!**
 
-![huEVO Xbox 360 Banner](assets/banner.png)
 
 ---
 
