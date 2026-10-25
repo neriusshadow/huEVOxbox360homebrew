@@ -1,4 +1,4 @@
-# 🎮 huEVO for Xbox 360 (Homebrew Edition)
+# 🎮 huEVO for Xbox 360 Homebrew
 
 > **Нативный автономный клиент независимой ретро-соцсети [huEVO](https://huevo.su) для Microsoft Xbox 360 (Freeboot / RGH / JTAG / Aurora Dashboard)**
 > **Работает НАПРЯМУЮ через проводной интернет (Ethernet) или Wi-Fi консоли. Компьютер или мост НЕ требуются!**
