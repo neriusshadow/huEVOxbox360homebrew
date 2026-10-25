@@ -29,24 +29,24 @@ Renderer::~Renderer() {
 
 #ifdef _XBOX
 static const CHAR* g_strVertexShader =
-    " struct VS_IN {                                \n"
-    "     float4 Pos   : POSITION;                  \n"
-    "     float4 Color : COLOR0;                    \n"
-    "     float2 Tex   : TEXCOORD0;                 \n"
-    " };                                            \n"
-    " struct VS_OUT {                               \n"
-    "     float4 ProjPos : POSITION;                \n"
-    "     float4 Color   : COLOR0;                  \n"
-    " };                                            \n"
-    " VS_OUT main( VS_IN In ) {                     \n"
-    "     VS_OUT Out;                               \n"
-    "     Out.ProjPos.x = (In.Pos.x / 640.0) - 1.0; \n"
-    "     Out.ProjPos.y = 1.0 - (In.Pos.y / 360.0); \n"
-    "     Out.ProjPos.z = 0.0;                      \n"
-    "     Out.ProjPos.w = 1.0;                      \n"
-    "     Out.Color = In.Color;                     \n"
-    "     return Out;                               \n"
-    " }                                             \n";
+    " struct VS_IN {                                        \n"
+    "     float4 Pos   : POSITION;                          \n"
+    "     float4 Color : COLOR0;                            \n"
+    "     float2 Tex   : TEXCOORD0;                         \n"
+    " };                                                    \n"
+    " struct VS_OUT {                                       \n"
+    "     float4 ProjPos : POSITION;                        \n"
+    "     float4 Color   : COLOR0;                          \n"
+    " };                                                    \n"
+    " VS_OUT main( VS_IN In ) {                             \n"
+    "     VS_OUT Out;                                       \n"
+    "     Out.ProjPos.x = ((In.Pos.x - 0.5) / 640.0) - 1.0; \n"
+    "     Out.ProjPos.y = 1.0 - ((In.Pos.y - 0.5) / 360.0); \n"
+    "     Out.ProjPos.z = 0.0;                              \n"
+    "     Out.ProjPos.w = 1.0;                              \n"
+    "     Out.Color = In.Color;                             \n"
+    "     return Out;                                       \n"
+    " }                                                     \n";
 
 static const CHAR* g_strPixelShader =
     " struct PS_IN {                                \n"
@@ -201,10 +201,17 @@ void Renderer::FlushBatch() {
 }
 
 void Renderer::DrawRect(float x, float y, float w, float h, uint32_t color) {
-    Vertex2D v1 = { x,     y,     0.0f, 1.0f, color, 0.0f, 0.0f };
-    Vertex2D v2 = { x + w, y,     0.0f, 1.0f, color, 0.0f, 0.0f };
-    Vertex2D v3 = { x,     y + h, 0.0f, 1.0f, color, 0.0f, 0.0f };
-    Vertex2D v4 = { x + w, y + h, 0.0f, 1.0f, color, 0.0f, 0.0f };
+    float rx = std::floor(x);
+    float ry = std::floor(y);
+    float rw = std::floor(w);
+    float rh = std::floor(h);
+    if (rw < 1.0f) rw = 1.0f;
+    if (rh < 1.0f) rh = 1.0f;
+
+    Vertex2D v1 = { rx,      ry,      0.0f, 1.0f, color, 0.0f, 0.0f };
+    Vertex2D v2 = { rx + rw, ry,      0.0f, 1.0f, color, 0.0f, 0.0f };
+    Vertex2D v3 = { rx,      ry + rh, 0.0f, 1.0f, color, 0.0f, 0.0f };
+    Vertex2D v4 = { rx + rw, ry + rh, 0.0f, 1.0f, color, 0.0f, 0.0f };
 
     m_VertexBuffer.push_back(v1);
     m_VertexBuffer.push_back(v2);
@@ -216,10 +223,15 @@ void Renderer::DrawRect(float x, float y, float w, float h, uint32_t color) {
 }
 
 void Renderer::DrawGradientV(float x, float y, float w, float h, uint32_t topColor, uint32_t bottomColor) {
-    Vertex2D v1 = { x,     y,     0.0f, 1.0f, topColor,    0.0f, 0.0f };
-    Vertex2D v2 = { x + w, y,     0.0f, 1.0f, topColor,    0.0f, 0.0f };
-    Vertex2D v3 = { x,     y + h, 0.0f, 1.0f, bottomColor, 0.0f, 0.0f };
-    Vertex2D v4 = { x + w, y + h, 0.0f, 1.0f, bottomColor, 0.0f, 0.0f };
+    float rx = std::floor(x);
+    float ry = std::floor(y);
+    float rw = std::floor(w);
+    float rh = std::floor(h);
+
+    Vertex2D v1 = { rx,      ry,      0.0f, 1.0f, topColor,    0.0f, 0.0f };
+    Vertex2D v2 = { rx + rw, ry,      0.0f, 1.0f, topColor,    0.0f, 0.0f };
+    Vertex2D v3 = { rx,      ry + rh, 0.0f, 1.0f, bottomColor, 0.0f, 0.0f };
+    Vertex2D v4 = { rx + rw, ry + rh, 0.0f, 1.0f, bottomColor, 0.0f, 0.0f };
 
     m_VertexBuffer.push_back(v1);
     m_VertexBuffer.push_back(v2);
@@ -271,7 +283,10 @@ void Renderer::DrawDivider(float x, float y, float w, uint32_t color) {
 }
 
 float Renderer::MeasureTextWidth(const std::string& text, float scale) {
-    float charW = 8.5f * scale;
+    float pixelSize = std::floor(scale);
+    if (pixelSize < 1.0f) pixelSize = 1.0f;
+    float charAdvance = 8.0f * pixelSize + 1.0f;
+
     const char* p = text.c_str();
     size_t remaining = text.length();
     int glyphCount = 0;
@@ -281,23 +296,27 @@ float Renderer::MeasureTextWidth(const std::string& text, float scale) {
         if (cp == '\n') break;
         glyphCount++;
     }
-    return glyphCount * charW;
+    return glyphCount * charAdvance;
 }
 
 float Renderer::GetFontHeight(float scale) {
-    return 16.0f * scale;
+    float pixelSize = std::floor(scale);
+    if (pixelSize < 1.0f) pixelSize = 1.0f;
+    return 16.0f * pixelSize;
 }
 
 void Renderer::DrawText(const std::string& text, float x, float y, uint32_t color, float scale, bool shadow) {
+    float curX = std::floor(x);
+    float curY = std::floor(y);
+    float pixelSize = std::floor(scale);
+    if (pixelSize < 1.0f) pixelSize = 1.0f;
+
     if (shadow) {
         uint32_t shadowColor = 0xCC050507;
-        DrawText(text, x + 1.5f * scale, y + 1.5f * scale, shadowColor, scale, false);
+        DrawText(text, curX + 1.0f, curY + 1.0f, shadowColor, scale, false);
     }
 
-    float curX = x;
-    float curY = y;
-    float pixelSize = scale;
-    float charAdvance = 8.5f * scale;
+    float charAdvance = 8.0f * pixelSize + 1.0f;
 
     const char* p = text.c_str();
     size_t remaining = text.length();
@@ -305,8 +324,8 @@ void Renderer::DrawText(const std::string& text, float x, float y, uint32_t colo
     while (remaining > 0) {
         uint32_t cp = DecodeUtf8Codepoint(p, remaining);
         if (cp == '\n') {
-            curX = x;
-            curY += 16.0f * scale;
+            curX = std::floor(x);
+            curY += 16.0f * pixelSize;
             continue;
         }
 
@@ -346,7 +365,6 @@ void Renderer::DrawTextClipped(const std::string& text, float x, float y, float 
         return;
     }
 
-    // Clip with ellipsis
     std::string clipped;
     const char* p = text.c_str();
     size_t remaining = text.length();
@@ -371,26 +389,27 @@ void Renderer::DrawButtonPrompt(const std::string& buttonName, const std::string
     float badgeR = 10.0f;
     DrawRoundedRect(x, y - 2, badgeR * 2, badgeR * 2, 4.0f, buttonColor);
     DrawText(buttonName, x + 5.0f, y + 1.0f, 0xFFFFFFFF, 1.0f, false);
-    DrawText(label, x + badgeR * 2 + 8.0f, y + 2.0f, COLOR_TEXT_PRIMARY, 1.05f, true);
+    DrawText(label, x + badgeR * 2 + 8.0f, y + 2.0f, COLOR_TEXT_PRIMARY, 1.0f, true);
 }
 
 void Renderer::DrawBadge(const std::string& text, float x, float y, uint32_t bgColor, uint32_t textColor) {
-    float w = MeasureTextWidth(text, 0.85f) + 10.0f;
+    float w = MeasureTextWidth(text, 1.0f) + 8.0f;
     float h = 17.0f;
     DrawRoundedRect(x, y, w, h, 3.0f, bgColor);
-    DrawText(text, x + 5.0f, y + 1.5f, textColor, 0.85f, false);
+    DrawText(text, x + 4.0f, y + 1.0f, textColor, 1.0f, false);
 }
 
 void Renderer::DrawAvatar(float x, float y, float size, uint32_t color, const std::string& initialLetter) {
     DrawRoundedRect(x, y, size, size, 6.0f, color);
-    float textW = MeasureTextWidth(initialLetter, size / 16.0f);
-    float textH = GetFontHeight(size / 16.0f);
+    float sc = (size >= 40.0f) ? 2.0f : 1.0f;
+    float textW = MeasureTextWidth(initialLetter, sc);
+    float textH = GetFontHeight(sc);
     DrawText(
         initialLetter,
         x + (size - textW) * 0.5f,
         y + (size - textH) * 0.5f,
         0xFFFFFFFF,
-        size / 16.0f,
+        sc,
         true
     );
 }

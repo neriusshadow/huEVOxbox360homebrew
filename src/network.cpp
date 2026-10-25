@@ -23,6 +23,113 @@ namespace huEVO {
 
 NetworkClient g_Network;
 
+// --- Lightweight JSON Parsing Helpers ---
+
+static std::string GetHttpBody(const std::string& httpResp) {
+    size_t pos = httpResp.find("\r\n\r\n");
+    if (pos != std::string::npos) {
+        return httpResp.substr(pos + 4);
+    }
+    pos = httpResp.find("\n\n");
+    if (pos != std::string::npos) {
+        return httpResp.substr(pos + 2);
+    }
+    return httpResp;
+}
+
+static std::string ExtractJsonString(const std::string& json, const std::string& key) {
+    std::string needle = "\"" + key + "\":";
+    size_t pos = json.find(needle);
+    if (pos == std::string::npos) {
+        needle = "\"" + key + "\" :";
+        pos = json.find(needle);
+        if (pos == std::string::npos) return "";
+    }
+    pos += needle.length();
+    while (pos < json.length() && (json[pos] == ' ' || json[pos] == '\t')) pos++;
+    if (pos < json.length() && json[pos] == '\"') {
+        pos++;
+        size_t endPos = pos;
+        while (endPos < json.length()) {
+            if (json[endPos] == '\"' && json[endPos - 1] != '\\') break;
+            endPos++;
+        }
+        std::string val = json.substr(pos, endPos - pos);
+        std::string res;
+        for (size_t i = 0; i < val.length(); ++i) {
+            if (val[i] == '\\' && i + 1 < val.length()) {
+                if (val[i+1] == '\"') { res += '\"'; i++; }
+                else if (val[i+1] == 'n') { res += '\n'; i++; }
+                else if (val[i+1] == 't') { res += '\t'; i++; }
+                else if (val[i+1] == '\\') { res += '\\'; i++; }
+                else { res += val[i]; }
+            } else {
+                res += val[i];
+            }
+        }
+        return res;
+    }
+    return "";
+}
+
+static int ExtractJsonInt(const std::string& json, const std::string& key, int defaultVal = 0) {
+    std::string needle = "\"" + key + "\":";
+    size_t pos = json.find(needle);
+    if (pos == std::string::npos) {
+        needle = "\"" + key + "\" :";
+        pos = json.find(needle);
+        if (pos == std::string::npos) return defaultVal;
+    }
+    pos += needle.length();
+    while (pos < json.length() && (json[pos] == ' ' || json[pos] == '\t')) pos++;
+    int sign = 1;
+    if (pos < json.length() && json[pos] == '-') { sign = -1; pos++; }
+    int res = 0;
+    bool found = false;
+    while (pos < json.length() && json[pos] >= '0' && json[pos] <= '9') {
+        res = res * 10 + (json[pos] - '0');
+        found = true;
+        pos++;
+    }
+    return found ? (res * sign) : defaultVal;
+}
+
+static bool ExtractJsonBool(const std::string& json, const std::string& key, bool defaultVal = false) {
+    std::string needle = "\"" + key + "\":";
+    size_t pos = json.find(needle);
+    if (pos == std::string::npos) return defaultVal;
+    pos += needle.length();
+    while (pos < json.length() && (json[pos] == ' ' || json[pos] == '\t')) pos++;
+    if (pos + 4 <= json.length() && json.substr(pos, 4) == "true") return true;
+    if (pos + 5 <= json.length() && json.substr(pos, 5) == "false") return false;
+    return defaultVal;
+}
+
+static std::vector<std::string> ExtractJsonObjects(const std::string& json) {
+    std::vector<std::string> objs;
+    int depth = 0;
+    size_t start = 0;
+    bool inString = false;
+
+    for (size_t i = 0; i < json.length(); ++i) {
+        char c = json[i];
+        if (c == '\"' && (i == 0 || json[i-1] != '\\')) {
+            inString = !inString;
+        } else if (!inString) {
+            if (c == '{') {
+                if (depth == 0) start = i;
+                depth++;
+            } else if (c == '}') {
+                depth--;
+                if (depth == 0 && start <= i) {
+                    objs.push_back(json.substr(start, i - start + 1));
+                }
+            }
+        }
+    }
+    return objs;
+}
+
 NetworkClient::NetworkClient()
     : m_Connected(false)
 {
@@ -70,13 +177,13 @@ std::string NetworkClient::HttpRequest(const std::string& method, const std::str
     }
 
 #ifdef _XBOX
-    DWORD timeout = 3000;
+    DWORD timeout = 2500;
     setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, (const char*)&timeout, sizeof(timeout));
     setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, (const char*)&timeout, sizeof(timeout));
 #else
     struct timeval tv;
-    tv.tv_sec = 3;
-    tv.tv_usec = 0;
+    tv.tv_sec = 2;
+    tv.tv_usec = 500000;
     setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof(tv));
     setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, (const char*)&tv, sizeof(tv));
 #endif
@@ -89,7 +196,7 @@ std::string NetworkClient::HttpRequest(const std::string& method, const std::str
 
     if (connect(sock, (sockaddr*)&serverAddr, sizeof(serverAddr)) == SOCKET_ERROR) {
         closesocket(sock);
-        m_LastError = "Не удалось подключиться к " + host;
+        m_LastError = "Не удалось подключиться к мосту " + host;
         return "";
     }
 
@@ -97,9 +204,6 @@ std::string NetworkClient::HttpRequest(const std::string& method, const std::str
     req += "Host: " + host + "\r\n";
     req += "User-Agent: huEVO-Xbox360/1.0\r\n";
     req += "Connection: close\r\n";
-    if (!g_Config.sessionCookie.empty()) {
-        req += "Cookie: " + g_Config.sessionCookie + "\r\n";
-    }
     if (!body.empty()) {
         char lenBuf[32];
         snprintf(lenBuf, sizeof(lenBuf), "%zu", body.length());
@@ -116,7 +220,7 @@ std::string NetworkClient::HttpRequest(const std::string& method, const std::str
     send(sock, req.c_str(), static_cast<int>(req.length()), 0);
 
     std::string resp;
-    char buf[2048];
+    char buf[4096];
     int bytes = 0;
     while ((bytes = recv(sock, buf, sizeof(buf) - 1, 0)) > 0) {
         buf[bytes] = '\0';
@@ -127,8 +231,7 @@ std::string NetworkClient::HttpRequest(const std::string& method, const std::str
 }
 
 void NetworkClient::PopulateMockData() {
-    // 1. User Profile from screenshots
-    m_CachedUser.id = "1";
+    m_CachedUser.id = "telega";
     m_CachedUser.displayName = "нериусшадоу";
     m_CachedUser.handle = "@telega";
     m_CachedUser.extraHandles = "@swagcreator, @eblan_dev, @snoopdog";
@@ -137,7 +240,7 @@ void NetworkClient::PopulateMockData() {
     m_CachedUser.birthday = "14 января 2002 г. (24 года)";
     m_CachedUser.workplace = "huEVO SWAGdev (deathwave solutions)";
     m_CachedUser.reputation = "14";
-    m_CachedUser.friendsCount = 88;
+    m_CachedUser.friendsCount = 57;
     m_CachedUser.followersCount = 1;
     m_CachedUser.groupsCount = 21;
     m_CachedUser.photosCount = 19;
@@ -146,187 +249,165 @@ void NetworkClient::PopulateMockData() {
     m_CachedUser.isOnline = true;
     m_CachedUser.avatarColor = 0xFF5181B8;
 
-    // 2. Feed & Wall Posts
-    Post p1;
-    p1.id = "101";
-    p1.authorName = "huEVO SWAGdev (deathwave solutions)";
-    p1.authorHandle = "@swagdev";
-    p1.timeAgo = "5 окт в 23:30";
-    p1.content = "всему huEVO передаю большой мозольный приветик! huEVO themes 1.0 RELEASE: конфиги (.hvthm), обои, кастомные темы.";
-    p1.likesCount = 19;
-    p1.commentsCount = 2;
-    p1.authorColor = 0xFF4A76A8;
-    m_CachedFeed.push_back(p1);
+    Post p;
+    p.id = "1";
+    p.authorName = "нериусшадоу";
+    p.authorHandle = "@telega";
+    p.timeAgo = "сегодня в 20:01";
+    p.content = "нериусшадоу замечен за употреблением американского киэфси";
+    p.likesCount = 10;
+    p.commentsCount = 2;
+    p.authorColor = 0xFF5181B8;
+    m_CachedFeed.push_back(p);
+    m_CachedUserPosts.push_back(p);
 
-    Post p2;
-    p2.id = "102";
-    p2.authorName = "если мир меня не слушает я его изменю";
-    p2.authorHandle = "@selfhurm";
-    p2.timeAgo = "сегодня в 17:09";
-    p2.content = "отдам самой сочной чиксе фотки в коменты";
-    p2.likesCount = 7;
-    p2.commentsCount = 22;
-    p2.authorColor = 0xFF7D4E88;
-    m_CachedFeed.push_back(p2);
+    Dialog d;
+    d.id = "pedro69";
+    d.peerName = "PEDRO";
+    d.lastSender = "pedro69";
+    d.lastMessage = "зайди на стрим";
+    d.timestamp = "сегодня";
+    d.isGroup = false;
+    d.unreadCount = 1;
+    d.peerColor = 0xFF6D5494;
+    m_CachedDialogs.push_back(d);
 
-    Post p3;
-    p3.id = "103";
-    p3.authorName = "нериусшадоу";
-    p3.authorHandle = "@telega";
-    p3.timeAgo = "вчера в 14:15";
-    p3.content = "Тестирую нативный клиент huEVO прямо на Xbox 360!";
-    p3.likesCount = 42;
-    p3.commentsCount = 5;
-    p3.authorColor = 0xFF5181B8;
-    m_CachedFeed.push_back(p3);
-    m_CachedUserPosts.push_back(p3);
-
-    // 3. Dialogs & Messages
-    Dialog d1;
-    d1.id = "chat_1";
-    d1.peerName = "хуева.чАТ";
-    d1.lastSender = "aloegarten";
-    d1.lastMessage = "Аудиозапись";
-    d1.timestamp = "14:25";
-    d1.isGroup = true;
-    d1.membersCount = 322;
-    d1.unreadCount = 99;
-    d1.peerColor = 0xFF6D5494;
-
-    DirectMessage m1_1 = { "1", "aloegarten", "кто в доту го", "14:20", false };
-    DirectMessage m1_2 = { "2", "canor", "я занят кодом", "14:22", false };
-    DirectMessage m1_3 = { "3", "нериусшадоу", "собираю билд на Xbox 360", "14:24", true };
-    DirectMessage m1_4 = { "4", "aloegarten", "Аудиозапись", "14:25", false };
-    d1.messages.push_back(m1_1);
-    d1.messages.push_back(m1_2);
-    d1.messages.push_back(m1_3);
-    d1.messages.push_back(m1_4);
-    m_CachedDialogs.push_back(d1);
-
-    Dialog d2;
-    d2.id = "chat_2";
-    d2.peerName = "Император";
-    d2.lastSender = "john";
-    d2.lastMessage = "ЫХЪАХЪЫАЫА";
-    d2.timestamp = "17:58";
-    d2.isGroup = true;
-    d2.membersCount = 424;
-    d2.unreadCount = 99;
-    d2.peerColor = 0xFF8A5A36;
-    DirectMessage m2_1 = { "1", "john", "ЫХЪАХЪЫАЫА", "17:58", false };
-    d2.messages.push_back(m2_1);
-    m_CachedDialogs.push_back(d2);
-
-    Dialog d3;
-    d3.id = "chat_3";
-    d3.peerName = "влад сораши";
-    d3.lastSender = "влад";
-    d3.lastMessage = "sorashi double eight";
-    d3.timestamp = "19.10";
-    d3.isGroup = false;
-    d3.unreadCount = 4;
-    d3.isOnline = true;
-    d3.peerColor = 0xFF3D6E8C;
-    DirectMessage m3_1 = { "1", "влад", "привет, че делаешь?", "19:00", false };
-    DirectMessage m3_2 = { "2", "нериусшадоу", "пилю хоумбрю клиент", "19:05", true };
-    DirectMessage m3_3 = { "3", "влад", "sorashi double eight", "19:10", false };
-    d3.messages.push_back(m3_1);
-    d3.messages.push_back(m3_2);
-    d3.messages.push_back(m3_3);
-    m_CachedDialogs.push_back(d3);
-
-    Dialog d4;
-    d4.id = "chat_4";
-    d4.peerName = "САПОГ";
-    d4.lastSender = "canor";
-    d4.lastMessage = "X3";
-    d4.timestamp = "02:15";
-    d4.isGroup = false;
-    d4.isOnline = true;
-    d4.peerColor = 0xFF587A4A;
-    DirectMessage m4_1 = { "1", "canor", "X3", "02:15", false };
-    d4.messages.push_back(m4_1);
-    m_CachedDialogs.push_back(d4);
-
-    // 4. Friends
-    Friend f1 = { "1", "влад сораши", "@selfhurm", "sorashi double eight", true, false, 0xFF3D6E8C };
-    Friend f2 = { "2", "САПОГ", "@canor", "САПОГ, VFX", true, false, 0xFF587A4A };
-    Friend f3 = { "3", "screampunk", "@screampunk", "ноунеймы из саундклауда", true, false, 0xFF884D72 };
-    Friend f4 = { "4", "rane4 /// ranewh", "@rane4", "online", true, false, 0xFF4A76A8 };
-    Friend f5 = { "5", "wwiper", "@wwiper", "был(-а) 4 дня назад", false, true, 0xFF666666 };
-    m_CachedFriends.push_back(f1);
-    m_CachedFriends.push_back(f2);
-    m_CachedFriends.push_back(f3);
-    m_CachedFriends.push_back(f4);
-    m_CachedFriends.push_back(f5);
-
-    // 5. Notifications
-    NotificationItem n1 = { "1", "PuppyLover184", "@puppylover184", "оценил(а) ваш пост", "", "5 мин назад", true };
-    NotificationItem n2 = { "2", "МЦ Леонидик", "@mcleonidick", "опубликовал(а) новую запись:", "«что лучше: начать читать рэп...»", "1 час назад", true };
-    NotificationItem n3 = { "3", "майнкрафт", "@minecraft", "принял(а) вашу заявку в друзья", "", "3 часа назад", false };
-    m_CachedNotifications.push_back(n1);
-    m_CachedNotifications.push_back(n2);
-    m_CachedNotifications.push_back(n3);
-
-    // 6. Communities
-    Community c1 = { "1", "VETMO 18+", "хайп джугарики teomova сватают бабуль", 7, 8, true, 0xFF7D4E88 };
-    Community c2 = { "2", "семьсот семь", "музыкальное объединение", 142, 65, false, 0xFF4A76A8 };
-    Community c3 = { "3", "huEVO SWAGdev", "официальная разработка huEVO", 4120, 290, false, 0xFF5181B8 };
-    m_CachedCommunities.push_back(c1);
-    m_CachedCommunities.push_back(c2);
-    m_CachedCommunities.push_back(c3);
-
-    // 7. Audio Tracks
-    AudioTrack t1 = { "1", "clout", "MPT", "2:41", false };
-    AudioTrack t2 = { "2", "double eight", "sorashi", "1:58", false };
-    AudioTrack t3 = { "3", "JUUL DROP", "САПОГ", "3:12", false };
-    AudioTrack t4 = { "4", "deathwave", "SWAGdev", "2:20", false };
-    m_CachedTracks.push_back(t1);
-    m_CachedTracks.push_back(t2);
-    m_CachedTracks.push_back(t3);
-    m_CachedTracks.push_back(t4);
-
-    // 8. Video Items
-    VideoItem v1 = { "1", "обзор на курилку", "plan a", "0:06", 12, 1, false };
-    VideoItem v2 = { "2", "vibecode$$$$$", "только я", "0:15", 9, 2, false };
-    VideoItem v3 = { "3", "КОДЕРСКАЯ ЯМА", "swagdev", "1:05", 14, 4, false };
-    m_CachedVideos.push_back(v1);
-    m_CachedVideos.push_back(v2);
-    m_CachedVideos.push_back(v3);
-
-    // 9. Marketplace
-    MarketUsername u1 = { "@19cm", 4, "20.10.26", 90000, "Матье Балл", true };
-    MarketUsername u2 = { "@18cm", 4, "20.10.26", 80000, "Матье Балл", true };
-    MarketUsername u3 = { "@16cm", 4, "20.10.26", 60000, "Матье Балл", true };
-    MarketUsername u4 = { "@mp3music", 8, "20.10.26", 33333, "4икуся", true };
-    MarketUsername u5 = { "@xoy", 3, "20.10.26", 444444, "4икуся", true };
-    m_CachedMarket.push_back(u1);
-    m_CachedMarket.push_back(u2);
-    m_CachedMarket.push_back(u3);
-    m_CachedMarket.push_back(u4);
-    m_CachedMarket.push_back(u5);
-}
-
-bool NetworkClient::FetchFeed(std::vector<Post>& outPosts) {
-    outPosts = m_CachedFeed;
-    return true;
+    Friend f;
+    f.id = "wwiper";
+    f.displayName = "wwiper";
+    f.handle = "@wwiper";
+    f.statusText = "онлайн";
+    f.isOnline = true;
+    f.isPending = false;
+    f.avatarColor = 0xFF3D6E8C;
+    m_CachedFriends.push_back(f);
 }
 
 bool NetworkClient::FetchProfile(const std::string& userId, User& outUser, std::vector<Post>& outUserPosts) {
+    std::string resp = HttpRequest("GET", "/api/profile");
+    std::string body = GetHttpBody(resp);
+    if (!body.empty() && body[0] == '{') {
+        outUser.id = ExtractJsonString(body, "id");
+        outUser.displayName = ExtractJsonString(body, "displayName");
+        outUser.handle = ExtractJsonString(body, "handle");
+        outUser.extraHandles = ExtractJsonString(body, "extraHandles");
+        outUser.statusText = ExtractJsonString(body, "statusText");
+        outUser.city = ExtractJsonString(body, "city");
+        outUser.birthday = ExtractJsonString(body, "birthday");
+        outUser.workplace = ExtractJsonString(body, "workplace");
+        outUser.reputation = ExtractJsonString(body, "reputation");
+        outUser.friendsCount = ExtractJsonInt(body, "friendsCount", 57);
+        outUser.followersCount = ExtractJsonInt(body, "followersCount", 1);
+        outUser.groupsCount = ExtractJsonInt(body, "groupsCount", 21);
+        outUser.photosCount = ExtractJsonInt(body, "photosCount", 19);
+        outUser.audioCount = ExtractJsonInt(body, "audioCount", 85);
+        outUser.videoCount = ExtractJsonInt(body, "videoCount", 6);
+        outUser.isOnline = ExtractJsonBool(body, "isOnline", true);
+        outUser.avatarColor = 0xFF5181B8;
+
+        int coins = ExtractJsonInt(body, "coins", 301680);
+        g_Config.coinsBalance = coins;
+
+        size_t ppos = body.find("\"posts\":");
+        if (ppos != std::string::npos) {
+            std::vector<std::string> postObjs = ExtractJsonObjects(body.substr(ppos));
+            outUserPosts.clear();
+            for (size_t i = 0; i < postObjs.size(); ++i) {
+                Post p;
+                p.id = ExtractJsonString(postObjs[i], "id");
+                p.authorName = ExtractJsonString(postObjs[i], "authorName");
+                p.authorHandle = ExtractJsonString(postObjs[i], "authorHandle");
+                p.timeAgo = ExtractJsonString(postObjs[i], "timeAgo");
+                p.content = ExtractJsonString(postObjs[i], "content");
+                p.likesCount = ExtractJsonInt(postObjs[i], "likesCount");
+                p.commentsCount = ExtractJsonInt(postObjs[i], "commentsCount");
+                p.isLiked = ExtractJsonBool(postObjs[i], "isLiked");
+                p.authorColor = 0xFF5181B8;
+                outUserPosts.push_back(p);
+            }
+        }
+        m_CachedUser = outUser;
+        m_CachedUserPosts = outUserPosts;
+        return true;
+    }
     outUser = m_CachedUser;
     outUserPosts = m_CachedUserPosts;
-    return true;
+    return false;
+}
+
+bool NetworkClient::FetchFeed(std::vector<Post>& outPosts) {
+    std::string resp = HttpRequest("GET", "/api/feed");
+    std::string body = GetHttpBody(resp);
+    if (!body.empty() && body[0] == '[') {
+        std::vector<std::string> items = ExtractJsonObjects(body);
+        if (!items.empty()) {
+            outPosts.clear();
+            for (size_t i = 0; i < items.size(); ++i) {
+                Post p;
+                p.id = ExtractJsonString(items[i], "id");
+                p.authorName = ExtractJsonString(items[i], "authorName");
+                p.authorHandle = ExtractJsonString(items[i], "authorHandle");
+                p.timeAgo = ExtractJsonString(items[i], "timeAgo");
+                p.content = ExtractJsonString(items[i], "content");
+                p.likesCount = ExtractJsonInt(items[i], "likesCount");
+                p.commentsCount = ExtractJsonInt(items[i], "commentsCount");
+                p.isLiked = ExtractJsonBool(items[i], "isLiked");
+                p.authorColor = 0xFF5181B8;
+                outPosts.push_back(p);
+            }
+            m_CachedFeed = outPosts;
+            return true;
+        }
+    }
+    outPosts = m_CachedFeed;
+    return false;
 }
 
 bool NetworkClient::FetchDialogs(std::vector<Dialog>& outDialogs) {
+    std::string resp = HttpRequest("GET", "/api/dialogs");
+    std::string body = GetHttpBody(resp);
+    if (!body.empty() && body[0] == '[') {
+        std::vector<std::string> items = ExtractJsonObjects(body);
+        if (!items.empty()) {
+            outDialogs.clear();
+            for (size_t i = 0; i < items.size(); ++i) {
+                Dialog d;
+                d.id = ExtractJsonString(items[i], "id");
+                d.peerName = ExtractJsonString(items[i], "peerName");
+                d.lastSender = ExtractJsonString(items[i], "lastSender");
+                d.lastMessage = ExtractJsonString(items[i], "lastMessage");
+                d.timestamp = ExtractJsonString(items[i], "timestamp");
+                d.isGroup = ExtractJsonBool(items[i], "isGroup");
+                d.membersCount = ExtractJsonInt(items[i], "membersCount", 2);
+                d.unreadCount = ExtractJsonInt(items[i], "unreadCount");
+                d.isOnline = ExtractJsonBool(items[i], "isOnline");
+                d.peerColor = d.isGroup ? 0xFF6D5494 : 0xFF3D6E8C;
+                outDialogs.push_back(d);
+            }
+            m_CachedDialogs = outDialogs;
+            return true;
+        }
+    }
     outDialogs = m_CachedDialogs;
-    return true;
+    return false;
 }
 
 bool NetworkClient::FetchMessages(const std::string& dialogId, std::vector<DirectMessage>& outMessages) {
-    for (size_t i = 0; i < m_CachedDialogs.size(); ++i) {
-        if (m_CachedDialogs[i].id == dialogId) {
-            outMessages = m_CachedDialogs[i].messages;
+    std::string resp = HttpRequest("GET", "/api/messages?partner=" + dialogId);
+    std::string body = GetHttpBody(resp);
+    if (!body.empty() && body[0] == '[') {
+        std::vector<std::string> items = ExtractJsonObjects(body);
+        if (!items.empty()) {
+            outMessages.clear();
+            for (size_t i = 0; i < items.size(); ++i) {
+                DirectMessage m;
+                m.id = ExtractJsonString(items[i], "id");
+                m.senderName = ExtractJsonString(items[i], "senderName");
+                m.text = ExtractJsonString(items[i], "text");
+                m.timestamp = ExtractJsonString(items[i], "timestamp");
+                m.isOutgoing = ExtractJsonBool(items[i], "isOutgoing");
+                outMessages.push_back(m);
+            }
             return true;
         }
     }
@@ -334,8 +415,29 @@ bool NetworkClient::FetchMessages(const std::string& dialogId, std::vector<Direc
 }
 
 bool NetworkClient::FetchFriends(std::vector<Friend>& outFriends) {
+    std::string resp = HttpRequest("GET", "/api/friends");
+    std::string body = GetHttpBody(resp);
+    if (!body.empty() && body[0] == '[') {
+        std::vector<std::string> items = ExtractJsonObjects(body);
+        if (!items.empty()) {
+            outFriends.clear();
+            for (size_t i = 0; i < items.size(); ++i) {
+                Friend f;
+                f.id = ExtractJsonString(items[i], "id");
+                f.displayName = ExtractJsonString(items[i], "name");
+                f.handle = ExtractJsonString(items[i], "handle");
+                f.statusText = ExtractJsonString(items[i], "status");
+                f.isOnline = ExtractJsonBool(items[i], "isOnline");
+                f.isPending = false;
+                f.avatarColor = 0xFF3D6E8C + (i * 0x051020);
+                outFriends.push_back(f);
+            }
+            m_CachedFriends = outFriends;
+            return true;
+        }
+    }
     outFriends = m_CachedFriends;
-    return true;
+    return false;
 }
 
 bool NetworkClient::FetchNotifications(std::vector<NotificationItem>& outNotifications) {
@@ -349,8 +451,27 @@ bool NetworkClient::FetchCommunities(std::vector<Community>& outCommunities) {
 }
 
 bool NetworkClient::FetchAudioTracks(std::vector<AudioTrack>& outTracks) {
+    std::string resp = HttpRequest("GET", "/api/audio");
+    std::string body = GetHttpBody(resp);
+    if (!body.empty() && body[0] == '[') {
+        std::vector<std::string> items = ExtractJsonObjects(body);
+        if (!items.empty()) {
+            outTracks.clear();
+            for (size_t i = 0; i < items.size(); ++i) {
+                AudioTrack t;
+                t.id = ExtractJsonString(items[i], "id");
+                t.title = ExtractJsonString(items[i], "title");
+                t.artist = ExtractJsonString(items[i], "artist");
+                t.duration = ExtractJsonString(items[i], "duration");
+                t.isPlaying = false;
+                outTracks.push_back(t);
+            }
+            m_CachedTracks = outTracks;
+            return true;
+        }
+    }
     outTracks = m_CachedTracks;
-    return true;
+    return false;
 }
 
 bool NetworkClient::FetchVideos(std::vector<VideoItem>& outVideos) {
@@ -359,11 +480,33 @@ bool NetworkClient::FetchVideos(std::vector<VideoItem>& outVideos) {
 }
 
 bool NetworkClient::FetchMarket(std::vector<MarketUsername>& outItems) {
+    std::string resp = HttpRequest("GET", "/api/market");
+    std::string body = GetHttpBody(resp);
+    if (!body.empty() && body[0] == '[') {
+        std::vector<std::string> items = ExtractJsonObjects(body);
+        if (!items.empty()) {
+            outItems.clear();
+            for (size_t i = 0; i < items.size(); ++i) {
+                MarketUsername m;
+                m.username = ExtractJsonString(items[i], "username");
+                m.charCount = ExtractJsonInt(items[i], "length");
+                m.date = ExtractJsonString(items[i], "dateAdded");
+                m.priceCoins = ExtractJsonInt(items[i], "priceCoins");
+                m.seller = ExtractJsonString(items[i], "sellerName");
+                m.isAvailable = ExtractJsonBool(items[i], "isAvailable", true);
+                outItems.push_back(m);
+            }
+            m_CachedMarket = outItems;
+            return true;
+        }
+    }
     outItems = m_CachedMarket;
-    return true;
+    return false;
 }
 
 bool NetworkClient::CreatePost(const std::string& text, Post& outCreatedPost) {
+    HttpRequest("POST", "/api/post", "text=" + text);
+
     outCreatedPost.id = ToString(m_CachedFeed.size() + 100);
     outCreatedPost.authorName = m_CachedUser.displayName;
     outCreatedPost.authorHandle = m_CachedUser.handle;
@@ -380,6 +523,8 @@ bool NetworkClient::CreatePost(const std::string& text, Post& outCreatedPost) {
 }
 
 bool NetworkClient::SendDirectMessage(const std::string& dialogId, const std::string& text, DirectMessage& outMsg) {
+    HttpRequest("POST", "/api/send_message", "dialog=" + dialogId + "&text=" + text);
+
     outMsg.id = ToString(100);
     outMsg.senderName = m_CachedUser.displayName;
     outMsg.text = text;
@@ -395,10 +540,12 @@ bool NetworkClient::SendDirectMessage(const std::string& dialogId, const std::st
             return true;
         }
     }
-    return false;
+    return true;
 }
 
 bool NetworkClient::ToggleLike(const std::string& postId, bool& outLiked, int& outCount) {
+    HttpRequest("POST", "/api/like", "id=" + postId);
+
     for (size_t i = 0; i < m_CachedFeed.size(); ++i) {
         if (m_CachedFeed[i].id == postId) {
             m_CachedFeed[i].isLiked = !m_CachedFeed[i].isLiked;

@@ -27,9 +27,9 @@ enum class PendingKeyboardAction {
 static PendingKeyboardAction s_PendingAction = PendingKeyboardAction::NONE;
 
 UIManager::UIManager()
-    : m_CurrentTab(ViewTab::PROFILE)
-    , m_FocusArea(FocusArea::SIDEBAR)
-    , m_SidebarIndex(0)
+    : m_CurrentTab(ViewTab::FEED)
+    , m_FocusArea(FocusArea::CONTENT)
+    , m_SidebarIndex(1)
     , m_ContentIndex(0)
     , m_ScrollOffset(0)
     , m_InChatMode(false)
@@ -199,15 +199,16 @@ void UIManager::HandleActions() {
 
     // (Y) Refresh / Action button
     if (g_Input.IsPressed(XINPUT_GAMEPAD_Y)) {
-        if (m_CurrentTab == ViewTab::FEED) {
-            g_Network.FetchFeed(m_FeedPosts);
-            ShowToast("Лента новостей обновлена", 80);
-        } else if (m_CurrentTab == ViewTab::MESSAGES) {
-            g_Network.FetchDialogs(m_Dialogs);
-            ShowToast("Диалоги обновлены", 80);
-        } else {
-            ShowToast("Данные синхронизированы", 60);
+        g_Network.FetchFeed(m_FeedPosts);
+        g_Network.FetchProfile("", m_User, m_UserPosts);
+        g_Network.FetchDialogs(m_Dialogs);
+        g_Network.FetchFriends(m_Friends);
+        g_Network.FetchAudioTracks(m_Tracks);
+        g_Network.FetchMarket(m_MarketItems);
+        if (m_InChatMode && !m_ActiveDialogId.empty()) {
+            g_Network.FetchMessages(m_ActiveDialogId, m_ActiveMessages);
         }
+        ShowToast("Синхронизировано с huevo.su!", 80);
     }
 
     // (X) Compose button
@@ -238,6 +239,7 @@ void UIManager::HandleActions() {
                 m_ActiveDialogId = m_Dialogs[m_ContentIndex].id;
                 m_ActiveDialogTitle = m_Dialogs[m_ContentIndex].peerName;
                 m_ActiveMessages = m_Dialogs[m_ContentIndex].messages;
+                g_Network.FetchMessages(m_ActiveDialogId, m_ActiveMessages);
                 m_ChatScrollOffset = 0;
             } else if (m_InChatMode) {
                 s_PendingAction = PendingKeyboardAction::SEND_MESSAGE;
