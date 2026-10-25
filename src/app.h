@@ -2,21 +2,19 @@
 
 namespace huEVO {
 
-class Application {
+class App {
 public:
-    Application();
-    ~Application();
+    App();
+    ~App();
 
     bool Initialize();
     void Run();
     void Shutdown();
 
-    void RequestExit() { m_Running = false; }
-
 private:
     bool m_Running;
 };
 
-extern Application g_App;
+extern App g_App;
 
 } // namespace huEVO

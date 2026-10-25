@@ -4,15 +4,11 @@
 #define NOMINMAX
 #endif
 
+#include <cstdint>
+
 #ifdef _XBOX
 #include <xtl.h>
-typedef unsigned short uint16_t;
-typedef unsigned char uint8_t;
-typedef short int16_t;
-typedef unsigned int uint32_t;
 #else
-#include <cstdint>
-// Fallback definitions for local PC testing / non-XDK compilation
 struct XINPUT_GAMEPAD {
     uint16_t wButtons;
     uint8_t  bLeftTrigger;
@@ -52,20 +48,13 @@ public:
 
     bool IsConnected() const { return m_Connected; }
 
-    // Instantaneous button state (down this frame)
     bool IsDown(uint16_t buttonMask) const;
-
-    // Single trigger (pressed down on this frame, not held)
     bool IsPressed(uint16_t buttonMask) const;
-
-    // Released on this frame
     bool IsReleased(uint16_t buttonMask) const;
 
-    // Analog stick values normalized from -1.0f to 1.0f
     float GetLeftStickX() const { return m_LeftStickX; }
     float GetLeftStickY() const { return m_LeftStickY; }
 
-    // Navigation helpers with auto-repeat for scrolling
     bool NavUp();
     bool NavDown();
     bool NavLeft();
@@ -79,7 +68,6 @@ private:
     float m_LeftStickX;
     float m_LeftStickY;
 
-    // Auto-repeat timers for smooth list scrolling
     int m_RepeatTimer;
     uint16_t m_LastNavDirection;
 };

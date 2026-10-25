@@ -19,7 +19,6 @@ typedef D3DVertexShader* LPDIRECT3DVERTEXSHADER9;
 typedef D3DPixelShader* LPDIRECT3DPIXELSHADER9;
 typedef D3DVertexDeclaration* LPDIRECT3DVERTEXDECLARATION9;
 #else
-// Mock definitions for cross-platform validation
 typedef void* LPDIRECT3D9;
 typedef void* LPDIRECT3DDEVICE9;
 typedef void* LPDIRECT3DTEXTURE9;
@@ -50,23 +49,25 @@ public:
     void BeginFrame();
     void EndFrame();
 
-    // Drawing primitives
+    // Geometric Drawing Primitives
     void DrawRect(float x, float y, float w, float h, uint32_t color);
     void DrawRoundedRect(float x, float y, float w, float h, float radius, uint32_t fillColor, uint32_t borderColor = 0, float borderWidth = 1.0f);
     void DrawLine(float x1, float y1, float x2, float y2, uint32_t color, float thickness = 1.0f);
     void DrawGradientV(float x, float y, float w, float h, uint32_t topColor, uint32_t bottomColor);
+    void DrawDivider(float x, float y, float w, uint32_t color = 0xFF2A2B2E);
 
-    // Text rendering (Latin + Cyrillic supported)
+    // Text & Font Rendering (Full Russian Cyrillic UTF-8 + Latin + Symbols)
     void DrawText(const std::string& text, float x, float y, uint32_t color, float scale = 1.0f, bool shadow = true);
+    void DrawTextClipped(const std::string& text, float x, float y, float maxWidth, uint32_t color, float scale = 1.0f, bool shadow = true);
     float MeasureTextWidth(const std::string& text, float scale = 1.0f);
     float GetFontHeight(float scale = 1.0f);
 
-    // High level UI elements
+    // High Level TV/Xbox UI Widgets
     void DrawButtonPrompt(const std::string& buttonName, const std::string& label, float x, float y, uint32_t buttonColor);
     void DrawBadge(const std::string& text, float x, float y, uint32_t bgColor, uint32_t textColor);
+    void DrawAvatar(float x, float y, float size, uint32_t color, const std::string& initialLetter);
     void DrawProgressBar(float x, float y, float w, float h, float progress, uint32_t fillColor, uint32_t bgColor);
 
-    // Device access
     LPDIRECT3DDEVICE9 GetDevice() const { return m_pDevice; }
 
 private:
@@ -74,7 +75,6 @@ private:
 
     LPDIRECT3D9 m_pD3D;
     LPDIRECT3DDEVICE9 m_pDevice;
-    LPDIRECT3DTEXTURE9 m_pFontTexture;
     LPDIRECT3DVERTEXSHADER9 m_pVertexShader;
     LPDIRECT3DPIXELSHADER9 m_pPixelShader;
     LPDIRECT3DVERTEXDECLARATION9 m_pVertexDecl;

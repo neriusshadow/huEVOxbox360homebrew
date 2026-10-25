@@ -1,78 +1,74 @@
 #include "app.h"
+#include "config.h"
 #include "renderer.h"
 #include "input.h"
 #include "network.h"
 #include "ui.h"
-#include "config.h"
 
 #ifdef _XBOX
 #include <xtl.h>
+extern "C" void HalReturnToFirmware(unsigned int routine);
+#define REBOOT_TO_DASHBOARD 1
 #endif
 
 namespace huEVO {
 
-Application g_App;
+App g_App;
 AppConfig g_Config;
 
-Application::Application()
+App::App()
     : m_Running(false)
 {
 }
 
-Application::~Application() {
+App::~App() {
     Shutdown();
 }
 
-bool Application::Initialize() {
-    // 1. Initialize Direct3D 9
+bool App::Initialize() {
     if (!g_Renderer.Initialize()) {
         return false;
     }
 
-    // 2. Initialize UI
-    g_UI.Initialize();
-
-    // 3. Render first frame immediately to display TV image without any freeze
-    g_Renderer.BeginFrame();
-    g_UI.Render();
-    g_Renderer.EndFrame();
-
-    // 4. Initialize Networking (XNet / Winsock)
     g_Network.Initialize();
+    g_UI.Initialize();
 
     m_Running = true;
     return true;
 }
 
-void Application::Shutdown() {
-    g_Network.Shutdown();
-    g_Renderer.Shutdown();
-}
-
-void Application::Run() {
+void App::Run() {
     while (m_Running) {
-        // 1. Poll Gamepad Input
         g_Input.Update();
 
-        // 2. Check for Exit command (Back button returns cleanly to Aurora / Dashboard)
+        // Exit to dashboard on Back button when on root sidebar
         if (g_Input.IsPressed(XINPUT_GAMEPAD_BACK)) {
             m_Running = false;
             break;
         }
 
-        // 3. Update App Logic and UI
         g_UI.Update();
 
-        // 4. Render Frame
         g_Renderer.BeginFrame();
         g_UI.Render();
         g_Renderer.EndFrame();
+
+#ifdef _XBOX
+        Sleep(1);
+#endif
     }
 
 #ifdef _XBOX
-    // Graceful exit back to Aurora Dashboard or default launcher
-    XLaunchNewImage(NULL, 0);
+    // Clean return to Aurora / Freestyle / Official Dashboard
+    HalReturnToFirmware(REBOOT_TO_DASHBOARD);
 #endif
+}
+
+void App::Shutdown() {
+    if (!m_Running) return;
+    g_Network.Shutdown();
+    g_Renderer.Shutdown();
+    m_Running = false;
 }
 
 } // namespace huEVO

@@ -1,7 +1,6 @@
 #pragma once
 
 #include "models.h"
-#include "tls_client.h"
 #include <string>
 #include <vector>
 
@@ -15,35 +14,44 @@ public:
     bool Initialize();
     void Shutdown();
 
-    // Authentication (Directly on huevo.su from Xbox 360)
-    bool Login(const std::string& username, const std::string& password, std::string& outError);
-    bool Logout();
-    bool IsLoggedIn() const;
-
-    // Social Network Data Actions
+    // Data queries
     bool FetchFeed(std::vector<Post>& outPosts);
     bool FetchProfile(const std::string& userId, User& outUser, std::vector<Post>& outUserPosts);
     bool FetchDialogs(std::vector<Dialog>& outDialogs);
-    bool FetchMessages(const std::string& peerId, std::vector<DirectMessage>& outMessages);
+    bool FetchMessages(const std::string& dialogId, std::vector<DirectMessage>& outMessages);
+    bool FetchFriends(std::vector<Friend>& outFriends);
+    bool FetchNotifications(std::vector<NotificationItem>& outNotifications);
+    bool FetchCommunities(std::vector<Community>& outCommunities);
     bool FetchAudioTracks(std::vector<AudioTrack>& outTracks);
+    bool FetchVideos(std::vector<VideoItem>& outVideos);
+    bool FetchMarket(std::vector<MarketUsername>& outItems);
 
-    // Write actions directly to huevo.su
+    // Write actions
     bool CreatePost(const std::string& text, Post& outCreatedPost);
-    bool SendDirectMessage(const std::string& peerId, const std::string& text);
+    bool SendDirectMessage(const std::string& dialogId, const std::string& text, DirectMessage& outMsg);
     bool ToggleLike(const std::string& postId, bool& outLiked, int& outCount);
 
-    // Status
-    bool IsConnected() const { return m_Initialized; }
+    bool IsConnected() const { return m_Connected; }
     std::string GetLastError() const { return m_LastError; }
 
 private:
-    std::string ExecuteRequest(const std::string& method, const std::string& path, const std::string& body = "");
-    void ParseHtmlFeed(const std::string& html, std::vector<Post>& outPosts);
+    std::string HttpRequest(const std::string& method, const std::string& path, const std::string& body = "");
+    void PopulateMockData();
 
-    TlsClient m_TlsClient;
-    bool m_Initialized;
+    bool m_Connected;
     std::string m_LastError;
-    std::string m_HchkToken;
+
+    // Cache mirroring screenshots for instant responsiveness
+    User m_CachedUser;
+    std::vector<Post> m_CachedFeed;
+    std::vector<Post> m_CachedUserPosts;
+    std::vector<Dialog> m_CachedDialogs;
+    std::vector<Friend> m_CachedFriends;
+    std::vector<NotificationItem> m_CachedNotifications;
+    std::vector<Community> m_CachedCommunities;
+    std::vector<AudioTrack> m_CachedTracks;
+    std::vector<VideoItem> m_CachedVideos;
+    std::vector<MarketUsername> m_CachedMarket;
 };
 
 extern NetworkClient g_Network;

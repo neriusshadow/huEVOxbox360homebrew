@@ -1,6 +1,7 @@
-# huEVO Xbox 360 - OXDK Makefile for macOS / Linux
+# huEVO Xbox 360 - OXDK Makefile
+# Targets Xbox 360 (XEX2 executable via LLVM + MSVC XDK libs)
 
-OXDK_DIR        ?= $(HOME)/OXDK
+OXDK_DIR        ?= /Users/neriusneriusnerius/OXDK
 OXDK_TARGET     := xbox360
 OXDK360_LIBCXX  := 1
 
@@ -13,9 +14,9 @@ SRCS := \
     src/main.cpp \
     src/app.cpp \
     src/renderer.cpp \
+    src/font.cpp \
     src/input.cpp \
     src/network.cpp \
-    src/tls_client.cpp \
     src/keyboard.cpp \
     src/ui.cpp
 

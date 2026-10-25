@@ -92,20 +92,19 @@ bool SystemKeyboard::Prompt(const std::string& title, const std::string& descrip
     std::memset(m_WideDefault, 0, sizeof(m_WideDefault));
     std::memset(m_WideResult, 0, sizeof(m_WideResult));
 
-    // Convert strings to persistent wchar buffers that remain valid during UI dialog
     Utf8ToWide(title, m_WideTitle, sizeof(m_WideTitle) / sizeof(wchar_t));
     Utf8ToWide(description, m_WideDesc, sizeof(m_WideDesc) / sizeof(wchar_t));
     Utf8ToWide(defaultText, m_WideDefault, sizeof(m_WideDefault) / sizeof(wchar_t));
 
     DWORD ret = XShowKeyboardUI(
-        0,                      // Player index 0
-        VKBD_DEFAULT,           // Flags
-        m_WideDefault,          // Persistent default text pointer
-        m_WideTitle,            // Persistent title pointer
-        m_WideDesc,             // Persistent description pointer
-        m_WideResult,           // Destination buffer
-        512,                    // Max characters
-        &s_Overlapped           // Async overlapped structure
+        0,
+        VKBD_DEFAULT,
+        m_WideDefault,
+        m_WideTitle,
+        m_WideDesc,
+        m_WideResult,
+        512,
+        &s_Overlapped
     );
 
     if (ret == ERROR_IO_PENDING) {
@@ -116,7 +115,7 @@ bool SystemKeyboard::Prompt(const std::string& title, const std::string& descrip
 #else
     m_Active = false;
     m_HasResult = true;
-    m_ResultString = "Привет из huEVO на Xbox 360!";
+    m_ResultString = "Привет из huEVO!";
     return true;
 #endif
 }

@@ -5,58 +5,55 @@
 namespace huEVO {
 
 enum class ConnectionMode {
-    DIRECT_STANDALONE = 0, // Direct connection from Xbox 360 over Ethernet to huevo.su
-    COMPANION_BRIDGE = 1   // Optional local PC bridge
+    STANDALONE_FALLBACK = 0,
+    COMPANION_BRIDGE = 1
 };
 
-// Target direct server
+// Target endpoints
 #define HUEVO_DIRECT_HOST "huevo.su"
 #define HUEVO_DIRECT_PORT 443
 
-// Bridge defaults (configured to current Mac host IP)
 #define HUEVO_BRIDGE_HOST "192.168.31.219"
 #define HUEVO_BRIDGE_PORT 8080
 
-// Screen resolution (Standard 720p 16:9 for Xbox 360)
-#define SCREEN_WIDTH 1280
+// Standard Xbox 360 720p 16:9 Display
+#define SCREEN_WIDTH  1280
 #define SCREEN_HEIGHT 720
 
-// UI Colors (32-bit ARGB) - Authentic huevo.su Dark Theme
-#define COLOR_BG            0xFF1B1C1E  // Official huevo.su dark background
-#define COLOR_HEADER        0xFF27282B  // Official huevo.su top navigation bar
-#define COLOR_PANEL         0xFF222326  // Official huevo.su post card surface
-#define COLOR_PANEL_BORDER  0xFF36383D  // Official huevo.su card border
-#define COLOR_ACCENT        0xFF5181B8  // Official huevo.su electric blue link
-#define COLOR_ACCENT_ALT    0xFF107C10  // Xbox 360 controller green
-#define COLOR_TEXT_PRIMARY  0xFFEDEDED  // Crisp light text
-#define COLOR_TEXT_MUTED    0xFF8E929A  // Slate grey secondary text
-#define COLOR_TEXT_LINK     0xFF5181B8  // Web blue
-#define COLOR_SELECTION     0xFF2A2F3D  // Focused item highlight
-#define COLOR_BADGE         0xFFE64646  // Notification / like red
+// Authentic Color Palette (Sampled directly from huevo.su screenshots)
+#define COLOR_BG               0xFF141517  // Core page background
+#define COLOR_TOPBAR           0xFF1F2022  // Header bar
+#define COLOR_SIDEBAR          0xFF141517  // Left navigation panel
+#define COLOR_CARD             0xFF1C1D1F  // Cards and post containers
+#define COLOR_CARD_BORDER      0xFF2A2B2E  // Subtle container outlines
+#define COLOR_CARD_HOVER       0xFF252629  // Hover/focus surface
+#define COLOR_SELECTION        0xFF223247  // Selected item background
+#define COLOR_SELECTION_BORDER 0xFF5181B8  // Focused item border
+#define COLOR_TEXT_PRIMARY     0xFFE1E3E6  // Crisp readable text
+#define COLOR_TEXT_MUTED       0xFF828282  // Secondary / timestamps / handles
+#define COLOR_ACCENT_BLUE      0xFF5181B8  // huevo.su link & branding blue
+#define COLOR_ACCENT_GREEN     0xFF4BB34B  // Online dot / status green
+#define COLOR_BADGE_RED        0xFFE64646  // Notification / unread count red
+#define COLOR_COIN_GOLD        0xFFFFB300  // Монэтки currency gold
+#define COLOR_XBOX_GREEN       0xFF107C10  // Xbox 360 green
 
-// Safe Area margins (Title Safe Area for CRT/HDTV standards)
-#define SAFE_MARGIN_X 64
-#define SAFE_MARGIN_Y 36
+// Safe Area Margins for standard HDTVs
+#define SAFE_MARGIN_X 56
+#define SAFE_MARGIN_Y 32
 
 struct AppConfig {
-    ConnectionMode mode = ConnectionMode::DIRECT_STANDALONE;
-    std::string directHost = HUEVO_DIRECT_HOST;
-    int directPort = HUEVO_DIRECT_PORT;
-    bool directUseTls = true;
-
-    // Optional Bridge settings
+    ConnectionMode mode = ConnectionMode::COMPANION_BRIDGE;
     std::string bridgeHost = HUEVO_BRIDGE_HOST;
     int bridgePort = HUEVO_BRIDGE_PORT;
 
-    // Session and Auth
     std::string sessionCookie = "";
-    std::string username = "";
-    std::string password = "";
-    bool isLoggedIn = false;
+    std::string username = "нериусшадоу";
+    std::string userHandle = "@telega";
+    bool isLoggedIn = true;
+    int coinsBalance = 301680;
 
-    // Preferences
-    bool soundEffects = true;
-    bool debugOverlay = false;
+    bool soundEnabled = true;
+    bool showDebug = false;
 };
 
 extern AppConfig g_Config;

@@ -8,10 +8,9 @@ class SystemKeyboard {
 public:
     SystemKeyboard();
 
-    // Trigger the native Xbox 360 On-Screen Virtual Keyboard
+    // Prompts the Xbox 360 Native Virtual Keyboard
     bool Prompt(const std::string& title, const std::string& description, const std::string& defaultText = "");
 
-    // Must be called in the main loop to check if user finished typing
     void Update();
 
     bool IsActive() const { return m_Active; }

@@ -3,6 +3,7 @@
 #endif
 
 #include "renderer.h"
+#include "font.h"
 #include "config.h"
 #include <cmath>
 #include <algorithm>
@@ -12,109 +13,9 @@ namespace huEVO {
 
 Renderer g_Renderer;
 
-// 8x8 font glyph definition (ASCII 32 to 127)
-static const uint8_t s_FontBitmap[96][8] = {
-    {0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00}, // ' '
-    {0x18,0x3C,0x3C,0x18,0x18,0x00,0x18,0x00}, // '!'
-    {0x66,0x66,0x24,0x00,0x00,0x00,0x00,0x00}, // '"'
-    {0x6C,0x6C,0xFE,0x6C,0xFE,0x6C,0x6C,0x00}, // '#'
-    {0x18,0x3E,0x60,0x3C,0x06,0x7C,0x18,0x00}, // '$'
-    {0x00,0x63,0x66,0x0C,0x18,0x33,0x63,0x00}, // '%'
-    {0x38,0x6C,0x38,0x76,0xDC,0xCC,0x76,0x00}, // '&'
-    {0x30,0x30,0x10,0x20,0x00,0x00,0x00,0x00}, // '''
-    {0x0C,0x18,0x30,0x30,0x30,0x18,0x0C,0x00}, // '('
-    {0x30,0x18,0x0C,0x0C,0x0C,0x18,0x30,0x00}, // ')'
-    {0x00,0x66,0x3C,0xFF,0x3C,0x66,0x00,0x00}, // '*'
-    {0x00,0x18,0x18,0x7E,0x18,0x18,0x00,0x00}, // '+'
-    {0x00,0x00,0x00,0x00,0x00,0x18,0x18,0x30}, // ','
-    {0x00,0x00,0x00,0x7E,0x00,0x00,0x00,0x00}, // '-'
-    {0x00,0x00,0x00,0x00,0x00,0x18,0x18,0x00}, // '.'
-    {0x06,0x0C,0x18,0x30,0x60,0xC0,0x80,0x00}, // '/'
-    {0x3C,0x66,0x6E,0x76,0x66,0x66,0x3C,0x00}, // '0'
-    {0x18,0x38,0x18,0x18,0x18,0x18,0x7E,0x00}, // '1'
-    {0x3C,0x66,0x06,0x0C,0x18,0x30,0x7E,0x00}, // '2'
-    {0x3C,0x66,0x06,0x1C,0x06,0x66,0x3C,0x00}, // '3'
-    {0x0C,0x1C,0x34,0x64,0x7E,0x0C,0x0C,0x00}, // '4'
-    {0x7E,0x60,0x7C,0x06,0x06,0x66,0x3C,0x00}, // '5'
-    {0x1C,0x30,0x60,0x7C,0x66,0x66,0x3C,0x00}, // '6'
-    {0x7E,0x66,0x06,0x0C,0x18,0x18,0x18,0x00}, // '7'
-    {0x3C,0x66,0x66,0x3C,0x66,0x66,0x3C,0x00}, // '8'
-    {0x3C,0x66,0x66,0x3E,0x06,0x0C,0x38,0x00}, // '9'
-    {0x00,0x18,0x18,0x00,0x00,0x18,0x18,0x00}, // ':'
-    {0x00,0x18,0x18,0x00,0x00,0x18,0x18,0x30}, // ';'
-    {0x0C,0x18,0x30,0x60,0x30,0x18,0x0C,0x00}, // '<'
-    {0x00,0x00,0x7E,0x00,0x00,0x7E,0x00,0x00}, // '='
-    {0x30,0x18,0x0C,0x06,0x0C,0x18,0x30,0x00}, // '>'
-    {0x3C,0x66,0x06,0x0C,0x18,0x00,0x18,0x00}, // '?'
-    {0x3C,0x66,0x6E,0x6E,0x60,0x62,0x3C,0x00}, // '@'
-    {0x18,0x3C,0x66,0x66,0x7E,0x66,0x66,0x00}, // 'A'
-    {0x7C,0x66,0x66,0x7C,0x66,0x66,0x7C,0x00}, // 'B'
-    {0x3C,0x66,0x60,0x60,0x60,0x66,0x3C,0x00}, // 'C'
-    {0x78,0x6C,0x66,0x66,0x66,0x6C,0x78,0x00}, // 'D'
-    {0x7E,0x60,0x60,0x7C,0x60,0x60,0x7E,0x00}, // 'E'
-    {0x7E,0x60,0x60,0x7C,0x60,0x60,0x60,0x00}, // 'F'
-    {0x3C,0x66,0x60,0x6E,0x66,0x66,0x3C,0x00}, // 'G'
-    {0x66,0x66,0x66,0x7E,0x66,0x66,0x66,0x00}, // 'H'
-    {0x3C,0x18,0x18,0x18,0x18,0x18,0x3C,0x00}, // 'I'
-    {0x0E,0x06,0x06,0x06,0x06,0x66,0x3C,0x00}, // 'J'
-    {0x66,0x6C,0x78,0x70,0x78,0x6C,0x66,0x00}, // 'K'
-    {0x60,0x60,0x60,0x60,0x60,0x60,0x7E,0x00}, // 'L'
-    {0x63,0x77,0x7F,0x6B,0x63,0x63,0x63,0x00}, // 'M'
-    {0x66,0x76,0x7E,0x7E,0x6E,0x66,0x66,0x00}, // 'N'
-    {0x3C,0x66,0x66,0x66,0x66,0x66,0x3C,0x00}, // 'O'
-    {0x7C,0x66,0x66,0x7C,0x60,0x60,0x60,0x00}, // 'P'
-    {0x3C,0x66,0x66,0x66,0x6E,0x3C,0x0E,0x00}, // 'Q'
-    {0x7C,0x66,0x66,0x7C,0x78,0x6C,0x66,0x00}, // 'R'
-    {0x3C,0x66,0x60,0x3C,0x06,0x66,0x3C,0x00}, // 'S'
-    {0x7E,0x18,0x18,0x18,0x18,0x18,0x18,0x00}, // 'T'
-    {0x66,0x66,0x66,0x66,0x66,0x66,0x3C,0x00}, // 'U'
-    {0x66,0x66,0x66,0x66,0x66,0x3C,0x18,0x00}, // 'V'
-    {0x63,0x63,0x63,0x6B,0x7F,0x77,0x63,0x00}, // 'W'
-    {0x66,0x66,0x3C,0x18,0x3C,0x66,0x66,0x00}, // 'X'
-    {0x66,0x66,0x66,0x3C,0x18,0x18,0x18,0x00}, // 'Y'
-    {0x7E,0x06,0x0C,0x18,0x30,0x60,0x7E,0x00}, // 'Z'
-    {0x3C,0x30,0x30,0x30,0x30,0x30,0x3C,0x00}, // '['
-    {0xC0,0x60,0x30,0x18,0x0C,0x06,0x02,0x00}, // '\'
-    {0x3C,0x0C,0x0C,0x0C,0x0C,0x0C,0x3C,0x00}, // ']'
-    {0x10,0x38,0x6C,0xC6,0x00,0x00,0x00,0x00}, // '^'
-    {0x00,0x00,0x00,0x00,0x00,0x00,0x00,0xFF}, // '_'
-    {0x30,0x18,0x0C,0x00,0x00,0x00,0x00,0x00}, // '`'
-    {0x00,0x00,0x3C,0x06,0x3E,0x66,0x3E,0x00}, // 'a'
-    {0x60,0x60,0x7C,0x66,0x66,0x66,0x7C,0x00}, // 'b'
-    {0x00,0x00,0x3C,0x66,0x60,0x66,0x3C,0x00}, // 'c'
-    {0x06,0x06,0x3E,0x66,0x66,0x66,0x3E,0x00}, // 'd'
-    {0x00,0x00,0x3C,0x66,0x7E,0x60,0x3C,0x00}, // 'e'
-    {0x1C,0x30,0x78,0x30,0x30,0x30,0x30,0x00}, // 'f'
-    {0x00,0x00,0x3E,0x66,0x66,0x3E,0x06,0x3C}, // 'g'
-    {0x60,0x60,0x7C,0x66,0x66,0x66,0x66,0x00}, // 'h'
-    {0x18,0x00,0x38,0x18,0x18,0x18,0x3C,0x00}, // 'i'
-    {0x0C,0x00,0x1C,0x0C,0x0C,0x0C,0x0C,0x38}, // 'j'
-    {0x60,0x60,0x66,0x6C,0x78,0x6C,0x66,0x00}, // 'k'
-    {0x38,0x18,0x18,0x18,0x18,0x18,0x3C,0x00}, // 'l'
-    {0x00,0x00,0x66,0x7F,0x7F,0x6B,0x63,0x00}, // 'm'
-    {0x00,0x00,0x7C,0x66,0x66,0x66,0x66,0x00}, // 'n'
-    {0x00,0x00,0x3C,0x66,0x66,0x66,0x3C,0x00}, // 'o'
-    {0x00,0x00,0x7C,0x66,0x66,0x7C,0x60,0x60}, // 'p'
-    {0x00,0x00,0x3E,0x66,0x66,0x3E,0x06,0x06}, // 'q'
-    {0x00,0x00,0x7C,0x66,0x60,0x60,0x60,0x00}, // 'r'
-    {0x00,0x00,0x3E,0x60,0x3C,0x06,0x7C,0x00}, // 's'
-    {0x18,0x18,0x7E,0x18,0x18,0x18,0x0C,0x00}, // 't'
-    {0x00,0x00,0x66,0x66,0x66,0x66,0x3E,0x00}, // 'u'
-    {0x00,0x00,0x66,0x66,0x66,0x3C,0x18,0x00}, // 'v'
-    {0x00,0x00,0x63,0x6B,0x7F,0x3E,0x36,0x00}, // 'w'
-    {0x00,0x00,0x66,0x3C,0x18,0x3C,0x66,0x00}, // 'x'
-    {0x00,0x00,0x66,0x66,0x66,0x3E,0x06,0x3C}, // 'y'
-    {0x00,0x00,0x7E,0x0C,0x18,0x30,0x7E,0x00}, // 'z'
-    {0x0E,0x18,0x18,0x70,0x18,0x18,0x0E,0x00}, // '{'
-    {0x18,0x18,0x18,0x18,0x18,0x18,0x18,0x00}, // '|'
-    {0x70,0x18,0x18,0x0E,0x18,0x18,0x70,0x00}, // '}'
-    {0x76,0xDC,0x00,0x00,0x00,0x00,0x00,0x00}  // '~'
-};
-
 Renderer::Renderer()
     : m_pD3D(nullptr)
     , m_pDevice(nullptr)
-    , m_pFontTexture(nullptr)
     , m_pVertexShader(nullptr)
     , m_pPixelShader(nullptr)
     , m_pVertexDecl(nullptr)
@@ -158,22 +59,20 @@ static const CHAR* g_strPixelShader =
 
 bool Renderer::Initialize() {
 #ifdef _XBOX
-    // Set up presentation parameters matching official Xbox 360 standards
+    m_pD3D = Direct3DCreate9(D3D_SDK_VERSION);
+    if (!m_pD3D) return false;
+
     D3DPRESENT_PARAMETERS d3dpp;
-    ZeroMemory(&d3dpp, sizeof(d3dpp));
+    std::memset(&d3dpp, 0, sizeof(d3dpp));
     d3dpp.BackBufferWidth = SCREEN_WIDTH;
     d3dpp.BackBufferHeight = SCREEN_HEIGHT;
-    d3dpp.BackBufferFormat = (D3DFORMAT)MAKESRGBFMT(D3DFMT_A8R8G8B8);
-    d3dpp.FrontBufferFormat = (D3DFORMAT)MAKESRGBFMT(D3DFMT_LE_X8R8G8B8);
-    d3dpp.MultiSampleType = D3DMULTISAMPLE_NONE;
-    d3dpp.MultiSampleQuality = 0;
+    d3dpp.BackBufferFormat = D3DFMT_X8R8G8B8;
     d3dpp.BackBufferCount = 1;
-    d3dpp.EnableAutoDepthStencil = TRUE;
-    d3dpp.AutoDepthStencilFormat = D3DFMT_D24S8;
+    d3dpp.EnableAutoDepthStencil = FALSE;
     d3dpp.SwapEffect = D3DSWAPEFFECT_DISCARD;
-    d3dpp.PresentationInterval = D3DPRESENT_INTERVAL_ONE; // 60 FPS VSync
+    d3dpp.PresentationInterval = D3DPRESENT_INTERVAL_ONE;
 
-    HRESULT hr = Direct3D_CreateDevice(
+    HRESULT hr = m_pD3D->CreateDevice(
         0,
         D3DDEVTYPE_HAL,
         NULL,
@@ -183,7 +82,7 @@ bool Renderer::Initialize() {
     );
     if (FAILED(hr) || !m_pDevice) return false;
 
-    // Compile and create Vertex Shader
+    // Compile Vertex Shader
     ID3DXBuffer* pVSBuffer = NULL;
     ID3DXBuffer* pErrorMsg = NULL;
     hr = D3DXCompileShader(
@@ -198,7 +97,7 @@ bool Renderer::Initialize() {
         pVSBuffer->Release();
     }
 
-    // Compile and create Pixel Shader
+    // Compile Pixel Shader
     ID3DXBuffer* pPSBuffer = NULL;
     hr = D3DXCompileShader(
         g_strPixelShader,
@@ -212,7 +111,7 @@ bool Renderer::Initialize() {
         pPSBuffer->Release();
     }
 
-    // Create Vertex Declaration matching Vertex2D
+    // Vertex declaration
     static const D3DVERTEXELEMENT9 s_VertexElements[] = {
         { 0,  0, D3DDECLTYPE_FLOAT4,   D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_POSITION, 0 },
         { 0, 16, D3DDECLTYPE_D3DCOLOR, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_COLOR,    0 },
@@ -221,7 +120,6 @@ bool Renderer::Initialize() {
     };
     m_pDevice->CreateVertexDeclaration(s_VertexElements, &m_pVertexDecl);
 
-    // Set 2D render states
     m_pDevice->SetRenderState(D3DRS_ALPHABLENDENABLE, TRUE);
     m_pDevice->SetRenderState(D3DRS_SRCBLEND, D3DBLEND_SRCALPHA);
     m_pDevice->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA);
@@ -245,10 +143,6 @@ void Renderer::Shutdown() {
         m_pVertexShader->Release();
         m_pVertexShader = nullptr;
     }
-    if (m_pFontTexture) {
-        m_pFontTexture->Release();
-        m_pFontTexture = nullptr;
-    }
     if (m_pDevice) {
         m_pDevice->Release();
         m_pDevice = nullptr;
@@ -263,9 +157,10 @@ void Renderer::Shutdown() {
 void Renderer::BeginFrame() {
     m_InFrame = true;
     m_VertexBuffer.clear();
+
 #ifdef _XBOX
     if (m_pDevice) {
-        m_pDevice->Clear(0, NULL, D3DCLEAR_TARGET | D3DCLEAR_ZBUFFER | D3DCLEAR_STENCIL, COLOR_BG, 1.0f, 0);
+        m_pDevice->Clear(0, NULL, D3DCLEAR_TARGET, COLOR_BG, 1.0f, 0);
         m_pDevice->BeginScene();
         if (m_pVertexShader) m_pDevice->SetVertexShader(m_pVertexShader);
         if (m_pPixelShader)  m_pDevice->SetPixelShader(m_pPixelShader);
@@ -339,10 +234,10 @@ void Renderer::DrawLine(float x1, float y1, float x2, float y2, uint32_t color, 
     float dx = x2 - x1;
     float dy = y2 - y1;
     float len = std::sqrt(dx * dx + dy * dy);
-    if (len <= 0.0001f) return;
+    if (len < 0.001f) return;
 
-    float nx = (-dy / len) * (thickness * 0.5f);
-    float ny = (dx / len) * (thickness * 0.5f);
+    float nx = -dy / len * (thickness * 0.5f);
+    float ny =  dx / len * (thickness * 0.5f);
 
     Vertex2D v1 = { x1 + nx, y1 + ny, 0.0f, 1.0f, color, 0.0f, 0.0f };
     Vertex2D v2 = { x2 + nx, y2 + ny, 0.0f, 1.0f, color, 0.0f, 0.0f };
@@ -359,12 +254,10 @@ void Renderer::DrawLine(float x1, float y1, float x2, float y2, uint32_t color, 
 }
 
 void Renderer::DrawRoundedRect(float x, float y, float w, float h, float radius, uint32_t fillColor, uint32_t borderColor, float borderWidth) {
-    // Center & side quads
     DrawRect(x + radius, y, w - 2 * radius, h, fillColor);
     DrawRect(x, y + radius, radius, h - 2 * radius, fillColor);
     DrawRect(x + w - radius, y + radius, radius, h - 2 * radius, fillColor);
 
-    // Subtle border outline if requested
     if (borderColor != 0 && borderWidth > 0.0f) {
         DrawLine(x + radius, y, x + w - radius, y, borderColor, borderWidth);
         DrawLine(x + radius, y + h, x + w - radius, y + h, borderColor, borderWidth);
@@ -373,9 +266,22 @@ void Renderer::DrawRoundedRect(float x, float y, float w, float h, float radius,
     }
 }
 
+void Renderer::DrawDivider(float x, float y, float w, uint32_t color) {
+    DrawRect(x, y, w, 1.0f, color);
+}
+
 float Renderer::MeasureTextWidth(const std::string& text, float scale) {
-    float charW = 9.0f * scale;
-    return text.length() * charW;
+    float charW = 8.5f * scale;
+    const char* p = text.c_str();
+    size_t remaining = text.length();
+    int glyphCount = 0;
+
+    while (remaining > 0) {
+        uint32_t cp = DecodeUtf8Codepoint(p, remaining);
+        if (cp == '\n') break;
+        glyphCount++;
+    }
+    return glyphCount * charW;
 }
 
 float Renderer::GetFontHeight(float scale) {
@@ -384,56 +290,109 @@ float Renderer::GetFontHeight(float scale) {
 
 void Renderer::DrawText(const std::string& text, float x, float y, uint32_t color, float scale, bool shadow) {
     if (shadow) {
-        uint32_t shadowColor = 0xBB000000;
+        uint32_t shadowColor = 0xCC050507;
         DrawText(text, x + 1.5f * scale, y + 1.5f * scale, shadowColor, scale, false);
     }
 
     float curX = x;
     float curY = y;
     float pixelSize = scale;
+    float charAdvance = 8.5f * scale;
 
-    for (size_t i = 0; i < text.length(); ++i) {
-        unsigned char c = static_cast<unsigned char>(text[i]);
-        if (c == '\n') {
+    const char* p = text.c_str();
+    size_t remaining = text.length();
+
+    while (remaining > 0) {
+        uint32_t cp = DecodeUtf8Codepoint(p, remaining);
+        if (cp == '\n') {
             curX = x;
             curY += 16.0f * scale;
             continue;
         }
 
-        // Support ASCII
-        int glyphIndex = c - 32;
-        if (glyphIndex >= 0 && glyphIndex < 96) {
-            for (int row = 0; row < 8; ++row) {
-                uint8_t rowBits = s_FontBitmap[glyphIndex][row];
-                for (int col = 0; col < 8; ++col) {
-                    if (rowBits & (0x80 >> col)) {
-                        DrawRect(
-                            curX + col * pixelSize,
-                            curY + row * pixelSize,
-                            pixelSize,
-                            pixelSize,
-                            color
-                        );
+        const uint8_t* glyph = GetGlyphBitmap(cp);
+        for (int row = 0; row < 8; ++row) {
+            uint8_t rowBits = glyph[row];
+            if (!rowBits) continue;
+
+            int col = 0;
+            while (col < 8) {
+                if (rowBits & (0x80 >> col)) {
+                    int runLen = 1;
+                    while (col + runLen < 8 && (rowBits & (0x80 >> (col + runLen)))) {
+                        runLen++;
                     }
+                    DrawRect(
+                        curX + col * pixelSize,
+                        curY + row * pixelSize,
+                        runLen * pixelSize,
+                        pixelSize,
+                        color
+                    );
+                    col += runLen;
+                } else {
+                    col++;
                 }
             }
         }
-        curX += 9.0f * scale;
+        curX += charAdvance;
     }
 }
 
+void Renderer::DrawTextClipped(const std::string& text, float x, float y, float maxWidth, uint32_t color, float scale, bool shadow) {
+    float curW = MeasureTextWidth(text, scale);
+    if (curW <= maxWidth) {
+        DrawText(text, x, y, color, scale, shadow);
+        return;
+    }
+
+    // Clip with ellipsis
+    std::string clipped;
+    const char* p = text.c_str();
+    size_t remaining = text.length();
+    float dotW = MeasureTextWidth("...", scale);
+
+    while (remaining > 0) {
+        const char* prev = p;
+        size_t prevRem = remaining;
+        DecodeUtf8Codepoint(p, remaining);
+        size_t charLen = prevRem - remaining;
+
+        clipped.append(prev, charLen);
+        if (MeasureTextWidth(clipped, scale) + dotW > maxWidth) {
+            clipped += "...";
+            break;
+        }
+    }
+    DrawText(clipped, x, y, color, scale, shadow);
+}
+
 void Renderer::DrawButtonPrompt(const std::string& buttonName, const std::string& label, float x, float y, uint32_t buttonColor) {
-    float badgeR = 11.0f;
+    float badgeR = 10.0f;
     DrawRoundedRect(x, y - 2, badgeR * 2, badgeR * 2, 4.0f, buttonColor);
-    DrawText(buttonName, x + 6.0f, y + 2.0f, 0xFFFFFFFF, 1.0f, false);
-    DrawText(label, x + badgeR * 2 + 8.0f, y + 2.0f, COLOR_TEXT_PRIMARY, 1.1f, true);
+    DrawText(buttonName, x + 5.0f, y + 1.0f, 0xFFFFFFFF, 1.0f, false);
+    DrawText(label, x + badgeR * 2 + 8.0f, y + 2.0f, COLOR_TEXT_PRIMARY, 1.05f, true);
 }
 
 void Renderer::DrawBadge(const std::string& text, float x, float y, uint32_t bgColor, uint32_t textColor) {
-    float w = MeasureTextWidth(text, 0.9f) + 12.0f;
-    float h = 18.0f;
-    DrawRoundedRect(x, y, w, h, 4.0f, bgColor);
-    DrawText(text, x + 6.0f, y + 2.0f, textColor, 0.9f, false);
+    float w = MeasureTextWidth(text, 0.85f) + 10.0f;
+    float h = 17.0f;
+    DrawRoundedRect(x, y, w, h, 3.0f, bgColor);
+    DrawText(text, x + 5.0f, y + 1.5f, textColor, 0.85f, false);
+}
+
+void Renderer::DrawAvatar(float x, float y, float size, uint32_t color, const std::string& initialLetter) {
+    DrawRoundedRect(x, y, size, size, 6.0f, color);
+    float textW = MeasureTextWidth(initialLetter, size / 16.0f);
+    float textH = GetFontHeight(size / 16.0f);
+    DrawText(
+        initialLetter,
+        x + (size - textW) * 0.5f,
+        y + (size - textH) * 0.5f,
+        0xFFFFFFFF,
+        size / 16.0f,
+        true
+    );
 }
 
 void Renderer::DrawProgressBar(float x, float y, float w, float h, float progress, uint32_t fillColor, uint32_t bgColor) {
