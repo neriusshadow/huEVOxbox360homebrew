@@ -1,0 +1,22 @@
+# macOS
+.DS_Store
+
+# Build artifacts & objects
+*.o
+.oxdklink/
+test.xex
+huevo_page.html
+bridge.zip
+* 2.zip
+
+# Build folders
+bin/
+build/
+*.VC.db
+ipch/
+*.opensdf
+*.sdf
+*.suo
+*.user
+__pycache__/
+*.pyc

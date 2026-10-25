@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=huEVO Xbox 360 Bridge
+Comment=Companion Bridge for Xbox 360 Homebrew
+Exec=bash -c 'cd "$(dirname "%k")" && ./ЗАПУСК_МОСТА_LINUX.sh; read -p "Нажмите Enter для закрытия..."'
+Icon=network-server
+Terminal=true
+Categories=Network;Game;
